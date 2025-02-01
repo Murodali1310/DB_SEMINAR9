@@ -315,49 +315,86 @@ DECLARE
 
 ## Практические задачи (Индексы)
 
-   - Создайте таблицу `items(id SERIAL PRIMARY KEY, name TEXT, category_id INT, price NUMERIC)`.
-   - Заполните таблицу `items` случайными данными (например, 100000 строк).
-   - Выполните запрос:
-     ```sql
-     EXPLAIN (ANALYZE) SELECT * FROM items WHERE name = 'SomeName';
-     ```
-     Обратите внимание на используемый метод чтения данных и затраты.
-   - Создайте индекс по полю `name`:
-     ```sql
-     CREATE INDEX idx_items_name ON items(name);
-     ```
-   - Повторите запрос и сравните план: стало ли быстрее, использовался ли теперь индекс?
+### Задача 1: Использование индексов для ускорения поиска по уникальному полю
 
-   - Выполните:
-     ```sql
-     EXPLAIN (ANALYZE) SELECT * FROM items WHERE price > 500;
-     ```
-     Посмотрите, какой метод сканирования выбран.
-   - Создайте индекс по полю `price`:
-     ```sql
-     CREATE INDEX idx_items_price ON items(price);
-     ```
-   - Повторите запрос и сравните результаты.  
-     Изменилось ли время выполнения? Какой метод сканирования теперь используется?
+- Создайте таблицу `users(user_id SERIAL PRIMARY KEY, name TEXT, email TEXT, country TEXT, created_at TIMESTAMP)`.
+- Заполните таблицу `users` случайными данными (например, 1 миллион строк).
+- Выполните запрос для поиска пользователя по `user_id`:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM users WHERE user_id = 123456;
+  ```
+  Обратите внимание на используемый метод чтения данных и затраты.
+- Если индекс не используется, создайте индекс по полю `user_id`:
+  ```sql
+  CREATE INDEX idx_user_id ON users(user_id);
+  ```
+- Повторите запрос и убедитесь, что теперь используется индекс для поиска.
 
-   - Попробуйте выполнить запрос:
-     ```sql
-     EXPLAIN (ANALYZE) SELECT * FROM items
-     WHERE category_id = 10 AND price < 100;
-     ```
-   - Создайте два индекса:
-     ```sql
-     CREATE INDEX idx_items_category_id ON items(category_id);
-     CREATE INDEX idx_items_price ON items(price);
-     ```
-   - Повторно выполните запрос, обратите внимание, не использует ли теперь PostgreSQL Bitmap Index Scan с объединением битовых карт?
+---
 
-   - Добавьте в запрос только те поля, которые входят в индекс:
-     ```sql
-     CREATE INDEX idx_items_name_price ON items(name, price);
-     ```
-   - Выполните:
-     ```sql
-     EXPLAIN (ANALYZE) SELECT name, price FROM items WHERE name = 'SomeName';
-     ```
-   - Проверьте, будет ли применен Index Only Scan (особенно, если поле `name` и `price` полностью покрывают запрос).
+### Задача 2: Селективность и использование индексов
+
+- Создайте таблицу `orders(order_id SERIAL PRIMARY KEY, user_id INT, status TEXT, total_amount NUMERIC, order_date TIMESTAMP)`.
+- Заполните таблицу случайными данными.
+- Создайте индекс по столбцу `status`:
+  ```sql
+  CREATE INDEX idx_status ON orders(status);
+  ```
+- Выполните запрос:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM orders WHERE status = 'shipped';
+  ```
+- Посмотрите, используется ли индекс.
+- Измените запрос, чтобы найти заказы с меньшей селективностью, например:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM orders WHERE status = 'pending';
+  ```
+- Посмотрите, какой метод сканирования был использован (например, `Seq Scan` или `Index Scan`).
+
+---
+
+### Задача 3: Составные индексы
+
+- Создайте таблицу `products(product_id SERIAL PRIMARY KEY, name TEXT, category TEXT, price NUMERIC, stock_quantity INT)`.
+- Заполните таблицу случайными данными.
+- Выполните запрос без индекса:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM products WHERE category = 'electronics' AND price < 1000;
+  ```
+- Создайте составной индекс на столбцы `category` и `price`:
+  ```sql
+  CREATE INDEX idx_category_price ON products(category, price);
+  ```
+- Повторите запрос с `EXPLAIN ANALYZE` и посмотрите, изменился ли план запроса.
+
+---
+
+### Задача 4: Индексы и сортировка
+
+- Создайте таблицу `employees(employee_id SERIAL PRIMARY KEY, name TEXT, department TEXT, salary NUMERIC, hire_date TIMESTAMP)`.
+- Заполните таблицу случайными данными.
+- Выполните запрос для сортировки по зарплате:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM employees ORDER BY salary DESC;
+  ```
+- Создайте индекс на поле `salary`:
+  ```sql
+  CREATE INDEX idx_salary ON employees(salary);
+  ```
+- Повторите запрос с `EXPLAIN ANALYZE` и проверьте, используется ли индекс.
+
+---
+
+### Задача 5: Индексы и частичные индексы
+
+- Создайте таблицу `orders(order_id SERIAL PRIMARY KEY, status TEXT, total_amount NUMERIC, order_date TIMESTAMP)`.
+- Заполните таблицу случайными данными.
+- Создайте частичный индекс на поле `status` для значения `shipped`:
+  ```sql
+  CREATE INDEX idx_shipped_orders ON orders(status) WHERE status = 'shipped';
+  ```
+- Выполните запрос для поиска заказов с таким статусом:
+  ```sql
+  EXPLAIN ANALYZE SELECT * FROM orders WHERE status = 'shipped';
+  ```
+- Проверьте, используется ли частичный индекс.
